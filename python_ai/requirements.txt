@@ -1,0 +1,9 @@
+# Python AI 服务依赖
+
+# PyTorch（根据你的系统选择合适的版本）
+# macOS (CPU版本)
+torch>=2.0.0
+# Windows/Linux GPU版本请访问 https://pytorch.org/get-started/locally/
+
+# 其他可能需要的库
+numpy>=1.24.0
