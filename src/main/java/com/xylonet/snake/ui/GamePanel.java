@@ -36,11 +36,14 @@ public class GamePanel extends JPanel {
     public static final char OBSTACLE_SYMBOL = '■';   // 障碍符号
 
     private GameBoard gameBoard;
+    private String overlayMessage;  // 游戏状态覆盖层消息（如 "Game Over", "Level Complete"）
+    private Color overlayColor;
 
     public GamePanel() {
         setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
         setBackground(BG_COLOR);
         setDoubleBuffered(true);  // 启用双缓冲减少闪烁
+        this.overlayMessage = null;
     }
 
     /**
@@ -55,6 +58,26 @@ public class GamePanel extends JPanel {
      */
     public void render(GameBoard board) {
         this.gameBoard = board;
+        repaint();
+    }
+
+    /**
+     * 设置覆盖层消息（如 "Game Over", "Level Complete"）
+     * @param message 消息文本，null 表示清除覆盖层
+     * @param color 消息颜色
+     */
+    public void setOverlay(String message, Color color) {
+        this.overlayMessage = message;
+        this.overlayColor = color;
+        repaint();
+    }
+
+    /**
+     * 清除覆盖层
+     */
+    public void clearOverlay() {
+        this.overlayMessage = null;
+        this.overlayColor = null;
         repaint();
     }
 
@@ -79,6 +102,45 @@ public class GamePanel extends JPanel {
         // 绘制游戏内容
         drawGrid(g2d);
         drawGameElements(g2d);
+
+        // 绘制覆盖层（如果有）
+        if (overlayMessage != null) {
+            drawOverlay(g2d);
+        }
+    }
+
+    /**
+     * 绘制覆盖层（游戏状态提示，如 "Game Over", "Level Complete"）
+     */
+    private void drawOverlay(Graphics2D g2d) {
+        if (overlayMessage == null) {
+            return;
+        }
+
+        // 半透明黑色背景
+        g2d.setColor(new Color(0, 0, 0, 180));
+        g2d.fillRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+
+        // 绘制主消息
+        g2d.setColor(overlayColor != null ? overlayColor : Color.WHITE);
+        g2d.setFont(new Font("Monospaced", Font.BOLD, 48));
+
+        FontMetrics fm = g2d.getFontMetrics();
+        int messageWidth = fm.stringWidth(overlayMessage);
+        int x = (PANEL_WIDTH - messageWidth) / 2;
+        int y = PANEL_HEIGHT / 2;
+
+        g2d.drawString(overlayMessage, x, y);
+
+        // 绘制提示文字
+        g2d.setColor(new Color(200, 200, 200));
+        g2d.setFont(new Font("Monospaced", Font.PLAIN, 16));
+
+        String hint = overlayMessage.contains("Over") ? "Press R to restart or SPACE to start new game"
+                                                       : "Press SPACE to continue";
+        int hintWidth = g2d.getFontMetrics().stringWidth(hint);
+        int hintX = (PANEL_WIDTH - hintWidth) / 2;
+        g2d.drawString(hint, hintX, y + 60);
     }
 
     /**

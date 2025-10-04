@@ -23,6 +23,7 @@ public class GameBoard {
     private int level;           // 当前关卡
     private int score;           // 分数
     private long levelStartTime; // 关卡开始时间
+    private boolean levelCompleted; // 是否刚刚完成关卡
     private static final int TIME_LIMIT = 180 * 1000; // 3 分钟 (毫秒)
 
     /**
@@ -34,6 +35,7 @@ public class GameBoard {
         this.bullets = new ArrayList<>();
         this.level = 1;
         this.score = 0;
+        this.levelCompleted = false;
 
         // 初始化游戏实体
         initializeLevel(1);
@@ -54,8 +56,16 @@ public class GameBoard {
         this.food = new Food();
         spawnFood();
 
-        // 创建门（第一关需要长度达到 10）
-        int requiredLength = 8 + (levelNumber * 2);  // 每关增加 2
+        // 创建门 - 增量模式：第1关+10，第2关+15，第3关+20...
+        // 每关增长量 = 10 + (levelNumber - 1) * 5
+        // 公式: requiredLength = 3 + (10 + 15 + 20 + ... ) = 3 + sum(10 + 5*i) for i=0 to n-1
+        //     = 3 + 10*n + 5*(0+1+2+...+(n-1)) = 3 + 10*n + 5*n*(n-1)/2
+        int growthNeeded = 10 + (levelNumber - 1) * 5;  // 本关需要增长的数量
+        int totalGrowth = 0;
+        for (int i = 1; i <= levelNumber; i++) {
+            totalGrowth += (10 + (i - 1) * 5);  // 累计所有关卡的增长
+        }
+        int requiredLength = 3 + growthNeeded;  // 本关只需达到：初始长度 + 本关增长量
         this.door = new Door(requiredLength);
 
         // 清空子弹
@@ -79,8 +89,10 @@ public class GameBoard {
             obstacles.add(new Obstacle(GRID_SIZE - 1, i, Obstacle.Type.WALL)); // 右边界
         }
 
-        // 生成随机障碍物（随关卡增加数量）
-        int obstacleCount = 5 + (levelNumber * 3);
+        // 生成随机障碍物 - 密度公式：第n关 = n%
+        // 可用区域为 (GRID_SIZE - 2) * (GRID_SIZE - 2)，排除边界
+        int innerArea = (GRID_SIZE - 2) * (GRID_SIZE - 2);
+        int obstacleCount = (int) Math.round(innerArea * levelNumber / 100.0);
         for (int i = 0; i < obstacleCount; i++) {
             Point pos = findEmptyPosition();
             if (pos != null) {
@@ -245,6 +257,7 @@ public class GameBoard {
      * 进入下一关
      */
     private void nextLevel() {
+        levelCompleted = true;  // 标记关卡完成
         level++;
         initializeLevel(level);
     }
@@ -299,4 +312,45 @@ public class GameBoard {
     public List<Bullet> getBullets() { return bullets; }
     public int getLevel() { return level; }
     public int getScore() { return score; }
+
+    /**
+     * 获取门激活进度（0.0 到 1.0）
+     */
+    public double getDoorProgress() {
+        if (door == null || snake == null) {
+            return 0.0;
+        }
+        int currentLength = snake.getLength();
+        int requiredLength = door.getRequiredLength();
+        if (currentLength >= requiredLength) {
+            return 1.0;
+        }
+        // 进度基于初始长度(3)到所需长度的增长
+        return (double)(currentLength - 3) / (double)(requiredLength - 3);
+    }
+
+    /**
+     * 获取还需要吃多少食物才能激活门
+     */
+    public int getFoodNeededForDoor() {
+        if (door == null || snake == null) {
+            return 0;
+        }
+        int remaining = door.getRequiredLength() - snake.getLength();
+        return Math.max(0, remaining);
+    }
+
+    /**
+     * 检查是否刚刚完成关卡
+     */
+    public boolean isLevelCompleted() {
+        return levelCompleted;
+    }
+
+    /**
+     * 确认关卡完成标志（重置标志）
+     */
+    public void acknowledgeLevelComplete() {
+        levelCompleted = false;
+    }
 }
