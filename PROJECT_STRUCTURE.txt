@@ -1,0 +1,284 @@
+Xylonet_Snake/
+├── README.md                           # 项目简介
+├── CLAUDE.md                           # Claude Code指导文档
+├── QUICKSTART.md                       # 5分钟快速开始指南
+├── JAVA_PYTHON_INTEGRATION.md         # Java-Python集成完整文档
+├── JAVA_DEPENDENCIES.md                # Java依赖说明
+├── PROJECT_STRUCTURE.txt               # 本文件 - 项目结构说明
+├── LICENSE                             # 开源许可证
+├── .gitignore                          # Git忽略文件
+│
+├── src/                                # Java源代码
+│   └── main/java/com/xylonet/snake/
+│       ├── Main.java                   # 主程序入口（通信测试demo）
+│       │
+│       ├── network/                    # 网络通信模块
+│       │   ├── PythonProcessManager.java   # Python进程管理器
+│       │   └── AIClient.java               # AI服务Socket客户端
+│       │
+│       ├── data/                       # 数据管理模块
+│       │   └── GameDatabase.java           # SQLite数据库操作类
+│       │
+│       ├── game/                       # 游戏逻辑（待实现）
+│       │   ├── Snake.java                  # 蛇实体
+│       │   ├── Food.java                   # 食物实体
+│       │   ├── Obstacle.java               # 障碍物
+│       │   ├── GameBoard.java              # 游戏面板
+│       │   └── GameEngine.java             # 游戏引擎
+│       │
+│       └── ui/                         # UI界面（待实现）
+│           ├── GamePanel.java              # 游戏面板
+│           ├── TerminalRenderer.java       # 类CLI风格渲染器
+│           └── MainWindow.java             # 主窗口
+│
+├── python_ai/                          # Python AI服务
+│   ├── ai_service.py                   # Socket服务主程序 ⭐核心
+│   ├── requirements.txt                # Python依赖
+│   │
+│   ├── scripts/                        # Python脚本
+│   │   ├── init_database.py            # 数据库初始化脚本
+│   │   └── behavior_analyzer.py        # 玩家行为分析器 ⭐核心
+│   │
+│   └── models/                         # PyTorch模型存放目录
+│       └── (待添加.pth模型文件)
+│
+├── data/                               # 运行时数据目录
+│   ├── snake_game.db                   # SQLite数据库（运行时生成）
+│   └── ai_port.txt                     # AI服务端口号（运行时生成）
+│
+├── lib/                                # Java外部库（手动模式）
+│   ├── gson-2.10.1.jar                 # Google JSON库
+│   └── sqlite-jdbc-3.44.1.0.jar        # SQLite JDBC驱动
+│
+└── .idea/                              # IntelliJ IDEA配置
+    └── (IntelliJ项目配置文件)
+
+
+═══════════════════════════════════════════════════════════════
+核心文件说明
+═══════════════════════════════════════════════════════════════
+
+【Java端 - 通信相关】
+
+1. PythonProcessManager.java (⭐⭐⭐)
+   - 启动/停止Python进程
+   - 跨平台兼容（Windows/macOS/Linux）
+   - 动态端口分配
+   - 进程输出监控
+
+2. AIClient.java (⭐⭐⭐)
+   - Socket客户端
+   - 心跳检测
+   - 发送游戏状态（异步）
+   - 请求MBTI分析（返回Future）
+   - JSON消息序列化/反序列化
+
+3. GameDatabase.java (⭐⭐⭐)
+   - SQLite连接管理
+   - 游戏会话记录
+   - 玩家操作记录（移动、射击、食物收集）
+   - 游戏状态快照
+
+4. Main.java
+   - 测试程序
+   - 演示如何集成所有组件
+   - 交互式菜单测试各个功能
+
+【Python端 - AI服务】
+
+1. ai_service.py (⭐⭐⭐)
+   - Socket服务器
+   - 端口动态分配（50705起）
+   - 处理三种消息类型：
+     * PING → PONG（心跳）
+     * GAME_STATE → ACK（游戏状态）
+     * REQUEST_ANALYSIS → ANALYSIS_RESULT（MBTI分析）
+   - 集成行为分析器
+
+2. behavior_analyzer.py (⭐⭐⭐)
+   - 从SQLite读取玩家数据
+   - 计算4个维度分数：
+     * aggression（攻击性）
+     * caution（谨慎度）
+     * exploration（探索性）
+     * planning（计划性）
+   - 基于启发式算法推测MBTI
+   - 计算分析置信度
+
+3. init_database.py
+   - 创建7个数据表
+   - 创建索引优化查询
+   - 项目启动前运行一次
+
+【数据库表结构】
+
+SQLite数据库包含7个表：
+
+1. game_sessions        - 游戏会话
+2. player_actions       - 玩家操作记录
+3. shooting_events      - 射击事件
+4. food_collection      - 食物收集
+5. game_snapshots       - 游戏状态快照
+6. mbti_analysis        - MBTI分析历史
+7. player_stats         - 玩家统计
+
+详细字段请参考 init_database.py
+
+
+═══════════════════════════════════════════════════════════════
+通信架构
+═══════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────┐
+│                        启动流程                              │
+├─────────────────────────────────────────────────────────────┤
+│  1. Java Main.main()                                        │
+│     ↓                                                        │
+│  2. PythonProcessManager.startPythonService()               │
+│     ↓                                                        │
+│  3. Python ai_service.py 启动                               │
+│     - 尝试绑定端口 50705, 50706, ...                        │
+│     - 写入端口号到 data/ai_port.txt                         │
+│     ↓                                                        │
+│  4. Java读取端口号                                          │
+│     ↓                                                        │
+│  5. AIClient.connect(localhost, port)                       │
+│     ↓                                                        │
+│  6. Socket连接建立 ✓                                        │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                     实时通信流程                             │
+├─────────────────────────────────────────────────────────────┤
+│  游戏循环 (30fps):                                          │
+│    ├─ 每帧更新游戏逻辑                                      │
+│    ├─ 记录操作到SQLite (GameDatabase)                      │
+│    ├─ [可选] 发送状态到Python (AIClient.sendGameState)     │
+│    └─ 每20秒: 请求MBTI分析 (AIClient.requestAnalysis)      │
+│                   ↓                                          │
+│              Python收到请求                                  │
+│                   ↓                                          │
+│         BehaviorAnalyzer读取SQLite                          │
+│                   ↓                                          │
+│              计算4个维度分数                                 │
+│                   ↓                                          │
+│              推测MBTI类型                                    │
+│                   ↓                                          │
+│           返回分析结果到Java                                 │
+│                   ↓                                          │
+│              在UI中显示                                      │
+└─────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════
+开发路线图
+═══════════════════════════════════════════════════════════════
+
+Phase 1: ✅ Java-Python通信框架
+  ✓ Socket IPC实现
+  ✓ Python进程管理
+  ✓ SQLite数据收集
+  ✓ 基础MBTI分析
+
+Phase 2: 🔄 游戏主体实现 (待开发)
+  - 蛇的移动逻辑（上下左右）
+  - 食物生成系统
+  - 障碍物和射击机制
+  - 碰撞检测
+  - 胜利条件（达到长度后出现门）
+  - 失败条件（撞墙/撞障碍）
+
+Phase 3: 🔄 UI界面 (待开发)
+  - Swing类CLI风格界面
+  - 终端样式渲染
+  - 实时分数显示
+  - MBTI分析结果展示
+
+Phase 4: 🔄 AI增强 (待开发)
+  - 改进MBTI分析算法
+  - 添加PyTorch模型预测玩家行为
+  - 基于分析调整游戏难度
+  - 实现"讨好/恶心玩家"机制
+
+Phase 5: 🔄 LLM集成 (待开发)
+  - 接入大语言模型API
+  - 生成游戏解说
+  - 个性化建议
+
+Phase 6: 🔄 打包部署 (待开发)
+  - 方案B: 文件夹分发
+  - 打包Python环境（PyInstaller）
+  - 跨平台启动脚本
+  - Mac .app / Windows .exe
+
+
+═══════════════════════════════════════════════════════════════
+依赖项
+═══════════════════════════════════════════════════════════════
+
+【Java】
+  - JDK 8+
+  - Gson 2.10.1 (JSON处理)
+  - SQLite JDBC 3.44.1.0 (数据库)
+
+【Python】
+  - Python 3.8+
+  - (可选) PyTorch 2.0+ (深度学习模型)
+  - (可选) NumPy 1.24+ (数值计算)
+
+
+═══════════════════════════════════════════════════════════════
+快速开始
+═══════════════════════════════════════════════════════════════
+
+1. 初始化数据库:
+   python3 python_ai/scripts/init_database.py
+
+2. 下载Java依赖JAR到 lib/ 目录（见JAVA_DEPENDENCIES.md）
+
+3. 在IntelliJ中添加库到项目
+
+4. 运行 Main.java
+
+5. 选择菜单选项5运行完整测试
+
+详细步骤见 QUICKSTART.md
+
+
+═══════════════════════════════════════════════════════════════
+关键设计决策
+═══════════════════════════════════════════════════════════════
+
+✅ Socket IPC vs HTTP API
+   - 选择Socket: 更低延迟、更适合实时通信
+
+✅ 端口动态分配
+   - 避免端口冲突，提高可靠性
+
+✅ 双重数据通道
+   - Socket: 实时通信
+   - SQLite: 持久化 + 离线分析
+
+✅ 进程自动管理
+   - Java启动自动拉起Python
+   - 退出自动清理
+
+✅ 异步通信
+   - 不阻塞游戏主循环
+   - 使用CompletableFuture处理分析结果
+
+✅ 错误容忍
+   - Python崩溃时Java可选择继续运行或退出
+   - 当前配置：直接退出（符合你的要求）
+
+
+═══════════════════════════════════════════════════════════════
+文档索引
+═══════════════════════════════════════════════════════════════
+
+📖 QUICKSTART.md               - 5分钟快速开始
+📖 JAVA_PYTHON_INTEGRATION.md  - 完整架构和API文档
+📖 JAVA_DEPENDENCIES.md         - Java依赖安装指南
+📖 CLAUDE.md                    - 项目概述
+📖 PROJECT_STRUCTURE.txt        - 本文件
+
